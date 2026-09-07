@@ -183,3 +183,36 @@ print(
 logger.info(
     "Kafka loan streaming source initialized successfully."
 )
+# =========================================================
+# Bronze Delta Layer
+# =========================================================
+
+BRONZE_PATH = "data/delta/bronze/loans"
+
+BRONZE_CHECKPOINT = (
+    "checkpoints/bronze/loans"
+)
+
+
+bronze_query = (
+    loan_stream
+    .writeStream
+    .format("delta")
+    .outputMode("append")
+    .option(
+        "checkpointLocation",
+        BRONZE_CHECKPOINT
+    )
+    .trigger(
+        processingTime="5 seconds"
+    )
+    .start(BRONZE_PATH)
+)
+
+
+logger.info(
+    "Bronze Delta streaming query started."
+)
+
+
+bronze_query.awaitTermination()
