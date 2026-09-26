@@ -1,0 +1,17 @@
+-- Create dedicated pgbouncer admin user
+CREATE USER pgbouncer WITH ENCRYPTED PASSWORD 'SecureAdminPassword123!';
+
+-- Function to fetch user credentials for PgBouncer authentication
+CREATE OR REPLACE FUNCTION public.lookup_pgbouncer_user(in_username text)
+RETURNS TABLE (username text, password text) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT usename::text, passwd::text
+    FROM pg_catalog.pg_shadow
+    WHERE usename = in_username;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Restrict execution to the pgbouncer user
+REVOKE ALL ON FUNCTION public.lookup_pgbouncer_user(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.lookup_pgbouncer_user(text) TO pgbouncer;
