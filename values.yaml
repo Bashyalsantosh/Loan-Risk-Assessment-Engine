@@ -1,0 +1,97 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/bashyalsantosh/loan-risk-assessment-engine
+  pullPolicy: IfNotPresent
+  tag: "v2.0.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: "loan-risk-sa"
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+  hosts:
+    - host: risk-analytics.internal.bank.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: risk-analytics-tls
+      hosts:
+        - risk-analytics.internal.bank.com
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+env:
+  ENVIRONMENT: "production"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  KAFKA_TOPIC_LOAN_APPLICATIONS: "loan.applications.raw"
+  WEIGHT_DTI: "0.40"
+  WEIGHT_LTV: "0.35"
+  WEIGHT_P_INSTANCES: "0.25"
+  THRESHOLD_CRITICAL: "0.75"
+  THRESHOLD_WATCHLIST: "0.45"
+
+secrets:
+  databaseUrl: "postgresql+asyncpg://postgres:SuperSecretBankPass2026!@postgres-postgresql.database.svc.cluster.local:5432/loan_risk_db"
+
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - loan-risk-engine
+          topologyKey: "kubernetes.io/hostname"
