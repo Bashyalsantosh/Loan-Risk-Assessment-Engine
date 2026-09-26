@@ -1,0 +1,38 @@
+groups:
+  - name: DatabaseInfrastructureAlerts
+    rules:
+      # PgBouncer Pool Saturation
+      - alert: PgBouncerPoolSaturated
+        expr: (pgbouncer_pools_server_active_connections / pgbouncer_pools_server_max_connections) > 0.85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PgBouncer pool saturation above 85% on {{ $labels.instance }}"
+
+      # Patroni Failover / Leader Missing
+      - alert: PatroniClusterNoLeader
+        expr: sum(patroni_is_leader) == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No active Patroni leader detected in the cluster!"
+
+      # etcd Quorum Warning
+      - alert: EtcdNoLeader
+        expr: etcd_server_has_leader == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "etcd node {{ $labels.instance }} lost leader consensus."
+
+      # HAProxy Backend Down
+      - alert: HAProxyBackendServerDown
+        expr: haproxy_server_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HAProxy backend {{ $labels.server }} in pool {{ $labels.proxy }} is DOWN."
