@@ -1,0 +1,150 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "PgBouncer Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 1 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "pgbouncer_pools_client_active_connections",
+          "legendFormat": "Active Client Connections ({{instance}})",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "pgbouncer_pools_client_waiting_connections",
+          "legendFormat": "Waiting Client Connections ({{instance}})",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "PgBouncer Active & Waiting Client Connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "conn" } },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 1 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "pgbouncer_pools_server_active_connections",
+          "legendFormat": "Server Active Conn ({{instance}})",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "pgbouncer_pools_server_idle_connections",
+          "legendFormat": "Server Idle Conn ({{instance}})",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "PgBouncer Server Pool Allocation",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 4,
+      "title": "Patroni & etcd Cluster Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 9 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "patroni_is_leader",
+          "legendFormat": "Cluster Leader ({{instance}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Patroni Leader Node Status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 9 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "patroni_xlog_location_bytes - patroni_xlog_received_location_bytes",
+          "legendFormat": "Replication Lag Bytes ({{instance}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Patroni Standby Replication Lag",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 7,
+      "title": "HAProxy Router Status",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 17 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "editorMode": "code",
+          "expr": "rate(haproxy_backend_sessions_total[1m])",
+          "legendFormat": "Backend Throughput ({{proxy}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HAProxy Connections Rate (RPS)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["postgresql", "patroni", "pgbouncer", "haproxy"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Database High Availability Infrastructure",
+  "uid": "db-ha-infra-overview"
+}
