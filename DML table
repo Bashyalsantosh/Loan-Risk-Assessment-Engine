@@ -1,0 +1,16 @@
+CREATE TABLE audit.data_changes (
+    audit_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    table_schema TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    operation VARCHAR(10) NOT NULL, -- INSERT, UPDATE, DELETE
+    session_user_name TEXT DEFAULT SESSION_USER NOT NULL,
+    client_ip INET DEFAULT inet_client_addr(),
+    old_data JSONB,
+    new_data JSONB,
+    changed_fields JSONB
+);
+
+-- Indexes for performance filtering on audit history
+CREATE INDEX idx_audit_data_table ON audit.data_changes(table_schema, table_name);
+CREATE INDEX idx_audit_data_time ON audit.data_changes(event_time);
