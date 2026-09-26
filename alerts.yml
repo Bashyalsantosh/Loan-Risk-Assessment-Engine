@@ -1,0 +1,67 @@
+groups:
+  - name: credit_risk_telemetry_alerts
+    rules:
+
+      # =====================================================================
+      # 1. KAFKA INGESTION & CONSUMER LAG ALERTS
+      # =====================================================================
+      - alert: KafkaConsumerLagCritical
+        expr: sum(kafka_consumergroup_lag{topic="loan.applications.raw"}) by (consumergroup) > 10000
+        for: 5m
+        labels:
+          severity: critical
+          service: kafka-ingestion
+          team: data-platform
+        annotations:
+          summary: "Critical Kafka consumer group lag on topic loan.applications.raw"
+          description: "Consumer group '{{ $labels.consumergroup }}' has an unconsumed lag of {{ $value | printf \"%.0f\" }} messages over the last 5 minutes. Downstream inference pipelines may be experiencing processing bottlenecks."
+
+      - alert: KafkaIngestionDropWarning
+        expr: rate(kafka_topic_partition_current_offset{topic="loan.applications.raw"}[5m]) == 0
+        for: 3m
+        labels:
+          severity: warning
+          service: kafka-ingestion
+          team: data-platform
+        annotations:
+          summary: "Kafka ingestion rate dropped to zero"
+          description: "Topic 'loan.applications.raw' has received zero incoming events over the past 3 minutes. Verify upstream event producers or gateway connectivity."
+
+      # =====================================================================
+      # 2. FASTAPI LATENCY & SLI/SLO ALERTS
+      # =====================================================================
+      - alert: APIInferenceHighP99Latency
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{handler="/api/v2/predict-risk"}[2m])) by (le)) > 0.500
+        for: 2m
+        labels:
+          severity: critical
+          service: credit-risk-api
+          team: backend-ml
+        annotations:
+          summary: "High p99 latency detected on credit risk prediction endpoint"
+          description: "The 99th percentile inference latency for '/api/v2/predict-risk' is currently {{ $value | printf \"%.3f\" }}s (threshold: 0.500s). Check model inference overhead or database locking."
+
+      - alert: APIHighErrorRate
+        expr: (sum(rate(http_requests_total{handler="/api/v2/predict-risk", status=~"5.."}[2m])) / sum(rate(http_requests_total{handler="/api/v2/predict-risk"}[2m]))) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: credit-risk-api
+          team: backend-ml
+        annotations:
+          summary: "High HTTP 5xx error rate on risk inference API"
+          description: "HTTP 5xx error rate for '/api/v2/predict-risk' is at {{ $value | printf \"%.2f\" }}% over the last 2 minutes (threshold: >5%)."
+
+      # =====================================================================
+      # 3. CREDIT RISK & DEFAULT DISTRIBUTION ALERTS
+      # =====================================================================
+      - alert: ElevatedRiskApplicationSpike
+        expr: (sum(rate(loan_risk_predictions_total{risk_category="Critical"}[5m])) / sum(rate(loan_risk_predictions_total[5m]))) * 100 > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: risk-analytics
+          team: risk-modelling
+        annotations:
+          summary: "Spike in High-Risk / Default-Tier credit applications"
+          description: "Over {{ $value | printf \"%.1f\" }}% of processed applications in the last 5 minutes were classified into the 'Critical' risk tier. Verify if this reflects an anomaly or macro-credit distribution shift."
