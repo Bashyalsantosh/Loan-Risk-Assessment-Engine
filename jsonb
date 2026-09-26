@@ -1,0 +1,43 @@
+CREATE OR REPLACE FUNCTION audit.log_data_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    old_json JSONB := NULL;
+    new_json JSONB := NULL;
+    diff_json JSONB := NULL;
+BEGIN
+    IF (TG_OP = 'DELETE') THEN
+        old_json := to_jsonb(OLD);
+    ELSIF (TG_OP = 'INSERT') THEN
+        new_json := to_jsonb(NEW);
+    ELSIF (TG_OP = 'UPDATE') THEN
+        old_json := to_jsonb(OLD);
+        new_json := to_jsonb(NEW);
+        
+        -- Compute delta between OLD and NEW JSONB representations
+        SELECT jsonb_object_agg(new_kv.key, new_kv.value)
+        INTO diff_json
+        FROM jsonb_each(new_json) AS new_kv
+        JOIN jsonb_each(old_json) AS old_kv 
+          ON new_kv.key = old_kv.key 
+         AND new_kv.value IS DISTINCT FROM old_kv.value;
+    END IF;
+
+    INSERT INTO audit.data_changes (
+        table_schema,
+        table_name,
+        operation,
+        old_data,
+        new_data,
+        changed_fields
+    ) VALUES (
+        TG_TABLE_SCHEMA,
+        TG_TABLE_NAME,
+        TG_OP,
+        old_json,
+        new_json,
+        diff_json
+    );
+
+    RETURN NULL; -- AFTER triggers return NULL
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
