@@ -1,0 +1,9 @@
+apiVersion: v2
+name: loan-risk-engine
+description: Enterprise Real-Time Loan Risk Analytics & Decision-Support Platform
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+maintainers:
+  - name: FinTech Data Platform Engineering
+    email: platform-eng@bank.com
