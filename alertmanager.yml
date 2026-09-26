@@ -1,0 +1,88 @@
+global:
+  resolve_timeout: 5m
+  # PagerDuty global integration key fallback
+  pagerduty_url: "https://events.pagerduty.com/v2/enqueue"
+  # Slack API URL configuration
+  slack_api_url: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+
+# Root routing tree
+route:
+  receiver: "slack-notifications"
+  group_by: ["alertname", "cluster", "service"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  # Sub-routes
+  routes:
+    # Route all 'critical' alerts to PagerDuty + Slack
+    - match:
+        severity: critical
+      receiver: "pagerduty-high-priority"
+      continue: true
+
+    - match:
+        severity: critical
+      receiver: "slack-critical-alerts"
+
+    # Route 'warning' alerts to default Slack channel
+    - match:
+        severity: warning
+      receiver: "slack-warning-alerts"
+
+# Inhibition rules silence lower-severity alerts when higher-severity alerts are already active
+inhibit_rules:
+  - source_match:
+      severity: "critical"
+    target_match:
+      severity: "warning"
+    equal: ["alertname", "cluster", "service"]
+
+# Receiver Definitions
+receivers:
+  # Default fallback Slack channel
+  - name: "slack-notifications"
+    slack_configs:
+      - channel: "#telemetry-alerts"
+        send_resolved: true
+        title: "Rule: {{ .CommonAnnotations.summary }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+
+  # Critical Slack Channel with explicit formatting
+  - name: "slack-critical-alerts"
+    slack_configs:
+      - channel: "#alerts-critical"
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        title: "🚨 [CRITICAL] {{ .CommonAnnotations.summary }}"
+        text: >-
+          *Service:* `{{ .CommonLabels.service }}`
+          *Environment:* `{{ .CommonLabels.environment }}`
+          *Description:* {{ .CommonAnnotations.description }}
+        actions:
+          - type: button
+            text: "View Dashboard 📊"
+            url: "https://grafana.internal/d/loan-risk-telemetry"
+
+  # Warning Slack Channel
+  - name: "slack-warning-alerts"
+    slack_configs:
+      - channel: "#alerts-warning"
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        title: "⚠️ [WARNING] {{ .CommonAnnotations.summary }}"
+        text: "*Service:* `{{ .CommonLabels.service }}`\n*Description:* {{ .CommonAnnotations.description }}"
+
+  # PagerDuty On-Call Escalation Receiver
+  - name: "pagerduty-high-priority"
+    pagerduty_configs:
+      - routing_key: "YOUR_PAGERDUTY_INTEGRATION_KEY"
+        send_resolved: true
+        severity: "critical"
+        component: "{{ .CommonLabels.service }}"
+        group: "{{ .CommonLabels.team }}"
+        summary: "{{ .CommonAnnotations.summary }}"
+        details:
+          firing_alerts: "{{ .Alerts.Firing | len }}"
+          description: "{{ .CommonAnnotations.description }}"
+          dashboard: "https://grafana.internal/d/loan-risk-telemetry"
