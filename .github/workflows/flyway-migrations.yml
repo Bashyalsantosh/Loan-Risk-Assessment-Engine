@@ -1,0 +1,90 @@
+name: Database Migrations (Flyway)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'sql/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'sql/**'
+  workflow_dispatch:
+
+env:
+  FLYWAY_URL: "jdbc:postgresql://${{ secrets.DB_HOST }}:${{ secrets.DB_PORT }}/${{ secrets.DB_NAME }}?sslmode=require"
+  FLYWAY_USER: "${{ secrets.DB_USER }}"
+  FLYWAY_PASSWORD: "${{ secrets.DB_PASSWORD }}"
+  FLYWAY_LOCATIONS: "filesystem:${{ github.workspace }}/sql"
+
+jobs:
+  validate-and-dry-run:
+    name: Validate & Dry-Run Migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flyway CLI
+        uses: flyway/flyway-action@v9
+        with:
+          version: '9.22.3'
+
+      - name: Flyway Info (Current Database State)
+        run: |
+          flyway info \
+            -url="${{ env.FLYWAY_URL }}" \
+            -user="${{ env.FLYWAY_USER }}" \
+            -password="${{ env.FLYWAY_PASSWORD }}" \
+            -locations="${{ env.FLYWAY_LOCATIONS }}"
+
+      - name: Flyway Validate (Check SQL Syntax & Checksums)
+        run: |
+          flyway validate \
+            -url="${{ env.FLYWAY_URL }}" \
+            -user="${{ env.FLYWAY_USER }}" \
+            -password="${{ env.FLYWAY_PASSWORD }}" \
+            -locations="${{ env.FLYWAY_LOCATIONS }}"
+
+      - name: Dry-Run Migration (Preview Pending Changes)
+        if: github.event_name == 'pull_request'
+        run: |
+          flyway info \
+            -url="${{ env.FLYWAY_URL }}" \
+            -user="${{ env.FLYWAY_USER }}" \
+            -password="${{ env.FLYWAY_PASSWORD }}" \
+            -locations="${{ env.FLYWAY_LOCATIONS }}" \
+            -outOfOrder=false
+
+  apply-migrations:
+    name: Apply Migrations (Production/Main)
+    needs: validate-and-dry-run
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Flyway Migrate
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/sql:/flyway/sql \
+            flyway/flyway:9.22.3 \
+            -url="${{ env.FLYWAY_URL }}" \
+            -user="${{ env.FLYWAY_USER }}" \
+            -password="${{ env.FLYWAY_PASSWORD }}" \
+            migrate
+
+      - name: Verify Final Schema Version
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/sql:/flyway/sql \
+            flyway/flyway:9.22.3 \
+            -url="${{ env.FLYWAY_URL }}" \
+            -user="${{ env.FLYWAY_USER }}" \
+            -password="${{ env.FLYWAY_PASSWORD }}" \
+            info
