@@ -1,0 +1,19 @@
+# 1. Validate Alertmanager configuration syntax using amtool
+amtool check-config alertmanager.yml
+
+# 2. Reload Alertmanager service without restarting
+curl -X POST http://localhost:9093/-/reload
+
+# 3. Fire a dummy test alert to verify Slack/PagerDuty routing
+curl -H "Content-Type: application/json" -d '[{
+  "labels": {
+    "alertname": "TestAlert",
+    "severity": "critical",
+    "service": "kafka-ingestion",
+    "team": "data-platform"
+  },
+  "annotations": {
+    "summary": "Manual test alert from amtool",
+    "description": "Testing Slack and PagerDuty notification integration."
+  }
+}]' http://localhost:9093/api/v1/alerts
