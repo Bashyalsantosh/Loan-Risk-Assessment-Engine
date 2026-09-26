@@ -1,0 +1,21 @@
+-- 1. Perform DDL operation
+CREATE TABLE test_audit_demo (id INT PRIMARY KEY, val TEXT);
+DROP TABLE test_audit_demo;
+
+-- Verify DDL audit records
+SELECT event_time, command_tag, object_type, object_identity 
+FROM audit.schema_changes 
+ORDER BY audit_id DESC LIMIT 5;
+
+-- 2. Perform DML operation on credit_profiles
+INSERT INTO credit_profiles (user_id, credit_score, risk_category) 
+VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 720, 'LOW_RISK');
+
+UPDATE credit_profiles 
+SET credit_score = 750 
+WHERE user_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
+-- Verify DML audit records and delta detection
+SELECT operation, table_name, old_data, new_data, changed_fields 
+FROM audit.data_changes 
+ORDER BY audit_id DESC LIMIT 2;
