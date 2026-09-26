@@ -1,0 +1,90 @@
+name: Deploy to Kubernetes via Helm
+
+on:
+  release:
+    types: [published] # Triggers automatically when a release is created
+  workflow_dispatch:   # Allows manual trigger with custom inputs
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: 'Docker Image Tag / Version'
+        required: true
+        default: 'latest'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: Deploy Helm Chart to Kubernetes
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm & Kubectl
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Configure Kubeconfig Context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Extract Release Version / Image Tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ github.event.inputs.image_tag }}"
+          fi
+          echo "IMAGE_TAG=${TAG}" >> $GITHUB_OUTPUT
+          echo "ENV=${{ github.event.inputs.environment || 'production' }}" >> $GITHUB_OUTPUT
+
+      - name: Verify Kubernetes Cluster Connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Helm Dependency Update
+        run: |
+          if [ -f "helm/loan-risk-engine/Chart.yaml" ]; then
+            helm dependency update helm/loan-risk-engine
+          fi
+
+      - name: Helm Upgrade / Install Release
+        run: |
+          TARGET_ENV="${{ steps.vars.outputs.ENV }}"
+          IMAGE_TAG="${{ steps.vars.outputs.IMAGE_TAG }}"
+          
+          echo "Deploying version ${IMAGE_TAG} to ${TARGET_ENV}..."
+          
+          helm upgrade --install loan-risk-engine ./helm/loan-risk-engine \
+            --namespace loan-risk-${TARGET_ENV} \
+            --create-namespace \
+            --values ./helm/loan-risk-engine/values.yaml \
+            ${{ hashFiles(format('./helm/loan-risk-engine/values-{0}.yaml', steps.vars.outputs.ENV)) != '' && format('--values ./helm/loan-risk-engine/values-{0}.yaml', steps.vars.outputs.ENV) || '' }} \
+            --set image.repository=ghcr.io/${{ github.repository }} \
+            --set image.tag=${${IMAGE_TAG}} \
+            --wait \
+            --timeout 5m0s
+
+      - name: Verify Deployment Rollout Status
+        run: |
+          TARGET_ENV="${{ steps.vars.outputs.ENV }}"
+          kubectl rollout status deployment/loan-risk-engine \
+            --namespace loan-risk-${TARGET_ENV} \
+            --timeout=180s
