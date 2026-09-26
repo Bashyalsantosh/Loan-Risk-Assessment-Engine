@@ -1,0 +1,94 @@
+scope: postgres-ha-cluster
+namespace: /service
+name: pg-node-01  # Unique identifier for this node (e.g., pg-node-02, pg-node-03)
+
+# ------------------------------------------------------------------------------
+# Distributed Configuration Store (DCS) - etcd setup
+# ------------------------------------------------------------------------------
+etcd3:
+  hosts:
+    - 10.0.0.11:2379
+    - 10.0.0.12:2379
+    - 10.0.0.13:2379
+
+# ------------------------------------------------------------------------------
+# Rest API Parameters (Used by HAProxy / Health checks)
+# ------------------------------------------------------------------------------
+restapi:
+  listen: 10.0.0.11:8008
+  connect_address: 10.0.0.11:8008
+
+# ------------------------------------------------------------------------------
+# Database Connection Parameters for Patroni Management
+# ------------------------------------------------------------------------------
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576 # 1MB max replication lag allowed for automatic failover
+    synchronous_mode: false          # Set to true if zero-data-loss sync replication is required
+    
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        shared_buffers: 4GB
+        work_mem: 64MB
+        maintenance_work_mem: 512MB
+        wal_level: replica
+        max_wal_size: 16GB
+        min_wal_size: 1GB
+        checkpoint_completion_target: 0.9
+        checkpoint_timeout: 15min
+        archive_mode: "on"
+        archive_command: "mkdir -p /var/lib/postgresql/wal_archive && cp %p /var/lib/postgresql/wal_archive/%f"
+        max_worker_processes: 8
+        max_parallel_workers: 4
+        max_replication_slots: 10
+        max_wal_senders: 10
+        hot_standby: "on"
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - host replication replicator 10.0.0.0/24 md5
+    - host replication replicator 127.0.0.1/32 md5
+    - host all all 10.0.0.0/24 md5
+    - host all all 127.0.0.1/32 md5
+    - host all all all md5
+
+# ------------------------------------------------------------------------------
+# Administrative & System Roles
+# ------------------------------------------------------------------------------
+users:
+  admin:
+    password: "SuperAdminSecurePassword123!"
+    options:
+      - superuser
+      - createdb
+
+# ------------------------------------------------------------------------------
+# Local PostgreSQL Daemon Settings
+# ------------------------------------------------------------------------------
+postgresql:
+  listen: 10.0.0.11:5432
+  connect_address: 10.0.0.11:5432
+  data_dir: /var/lib/postgresql/15/main
+  bin_dir: /usr/lib/postgresql/15/bin
+  pgpass: /var/lib/postgresql/.pgpass
+  authentication:
+    replication:
+      username: replicator
+      password: "ReplicationSecurePassword123!"
+    superuser:
+      username: postgres
+      password: "PostgresSuperUserPassword123!"
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false
